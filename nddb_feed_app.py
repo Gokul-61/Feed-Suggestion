@@ -378,3 +378,257 @@ st.markdown("""
     Base rations from NDDB TMR tables; body size & stage adjustments follow NDDB feeding principles.
 </div>
 """, unsafe_allow_html=True)
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+import datetime
+import io
+
+st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
+st.markdown("## 📄 Download Feed Report")
+
+# Button to generate report
+if st.button("Export PDF Report"):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    
+    def draw_header_box(c, y_pos):
+        """Draw green header box"""
+        c.setFillColorRGB(0.176, 0.314, 0.086)  # Dark green
+        c.rect(40, y_pos - 35, width - 80, 50, fill=True, stroke=False)
+        c.setFillColorRGB(1, 1, 1)  # White text
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(55, y_pos - 15, "Feed Recommendation Report")
+        c.setFont("Helvetica", 10)
+        c.drawString(55, y_pos - 30, "NDDB-Based Scientific Ration Balancing for Dairy Animals")
+        return y_pos - 50
+    
+    def draw_section_box(c, y_pos, title, content_lines, bg_color=(0.941, 0.973, 0.902)):
+        """Draw a styled section box with content"""
+        box_height = 30 + (len(content_lines) * 18)
+        
+        # Check if we need a new page
+        if y_pos - box_height < 50:
+            c.showPage()
+            y_pos = height - 80
+        
+        # Draw background box
+        c.setFillColorRGB(*bg_color)
+        c.rect(40, y_pos - box_height, width - 80, box_height, fill=True, stroke=True)
+        
+        # Draw title bar
+        c.setFillColorRGB(0.176, 0.314, 0.086)
+        c.rect(40, y_pos - 25, width - 80, 25, fill=True, stroke=False)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y_pos - 18, title)
+        
+        # Draw content
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 10)
+        y_content = y_pos - 42
+        for line in content_lines:
+            c.drawString(55, y_content, line)
+            y_content -= 18
+        
+        return y_pos - box_height - 20
+    
+    def draw_feed_table(c, y_pos, feeds_data):
+        """Draw feed recommendation table"""
+        if y_pos < 200:
+            c.showPage()
+            y_pos = height - 80
+        
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y_pos, "Daily Feed Recommendation (Per Animal)")
+        y_pos -= 25
+        
+        # Table header
+        c.setFillColorRGB(0.176, 0.314, 0.086)
+        c.rect(50, y_pos - 20, width - 100, 25, fill=True, stroke=True)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(60, y_pos - 13, "Feed Type")
+        c.drawString(250, y_pos - 13, "Ingredient")
+        c.drawString(450, y_pos - 13, "Quantity")
+        
+        y_pos -= 25
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 10)
+        
+        # Table rows
+        for i, (feed_type, ingredient, quantity, unit) in enumerate(feeds_data):
+            if quantity > 0:
+                # Alternate row colors
+                if i % 2 == 0:
+                    c.setFillColorRGB(0.97, 0.97, 0.97)
+                else:
+                    c.setFillColorRGB(1, 1, 1)
+                c.rect(50, y_pos - 18, width - 100, 20, fill=True, stroke=True)
+                
+                c.setFillColorRGB(0, 0, 0)
+                c.drawString(60, y_pos - 12, feed_type)
+                c.drawString(250, y_pos - 12, ingredient)
+                c.drawString(450, y_pos - 12, f"{quantity:.2f} {unit}")
+                y_pos -= 20
+        
+        return y_pos - 20
+    
+    def draw_nutrient_grid(c, y_pos, nutrients_data):
+        """Draw nutrient analysis in a grid"""
+        if y_pos < 300:
+            c.showPage()
+            y_pos = height - 80
+        
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y_pos, "Nutritional Analysis (Per Animal Per Day)")
+        y_pos -= 30
+        
+        # Draw 2 columns x 4 rows grid
+        col_width = (width - 100) / 2
+        row_height = 60
+        x_start = 50
+        
+        row = 0
+        col = 0
+        
+        for nutrient, full_name, value, unit in nutrients_data:
+            x = x_start + (col * col_width)
+            y = y_pos - (row * row_height)
+            
+            # Draw box
+            c.setFillColorRGB(0.97, 0.97, 0.97)
+            c.rect(x, y - row_height + 10, col_width - 10, row_height - 10, fill=True, stroke=True)
+            
+            # Draw content
+            c.setFillColorRGB(0.4, 0.4, 0.4)
+            c.setFont("Helvetica", 8)
+            c.drawString(x + 10, y - 20, full_name)
+            
+            # Value and unit on same line
+            c.setFillColorRGB(0.176, 0.314, 0.086)
+            c.setFont("Helvetica-Bold", 18)
+            value_text = f"{value:.2f}"
+            c.drawString(x + 10, y - 43, value_text)
+            
+            # Calculate width of value text to position unit right after it
+            value_width = c.stringWidth(value_text, "Helvetica-Bold", 18)
+            
+            c.setFillColorRGB(0.5, 0.5, 0.5)
+            c.setFont("Helvetica", 10)
+            c.drawString(x + 10 + value_width + 3, y - 43, f" {unit}")
+            
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+        
+        return y_pos - (row * row_height) - 30
+
+    # Start building PDF
+    y = height - 60
+    
+    # Header
+    y = draw_header_box(c, y)
+    y -= 30
+    
+    # Generated date
+    c.setFont("Helvetica", 9)
+    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.drawString(50, y, f"Generated: {datetime.datetime.now().strftime('%B %d, %Y at %H:%M')}")
+    y -= 30
+    
+    # Animal Configuration
+    animal_info = [
+        f"Animal Type: {animal}",
+        f"Milk Production Level: {milk_level}",
+        f"Body Size: {body_type}",
+        f"Lactation Stage: {stage}",
+        f"Number of Animals: {num}"
+    ]
+    y = draw_section_box(c, y, "■ Animal Configuration", animal_info)
+    
+    # Feed Recommendation Table
+    feeds_data = [
+        ("DRY FODDER", dry_fodder['Ingredient'] if dry_fodder is not None else "", ration["dry"], "kg"),
+        ("GREEN FODDER", green_fodder['Ingredient'] if green_fodder is not None else "", ration["green"], "kg"),
+        ("CONCENTRATE", concentrate['Ingredient'] if concentrate is not None else "", ration["conc"], "kg"),
+        ("OIL CAKE", oil_cake['Ingredient'] if oil_cake is not None else "", ration["oil"], "kg"),
+        ("BRAN", bran_feed['Ingredient'] if bran_feed is not None else "", ration["bran"], "kg"),
+        ("MINERAL SUPPLEMENT", "Mineral Mixture", ration["mineral"], "g"),
+    ]
+    y = draw_feed_table(c, y, feeds_data)
+    
+    # Nutritional Analysis Grid
+    nutrients_data = [
+        ("CP", "Crude Protein (Protein)", nutrient_totals["CP"], "kg/day"),
+        ("EE", "Ether Extract (Fat)", nutrient_totals["EE"], "kg/day"),
+        ("CF", "Crude Fibre (Fibre)", nutrient_totals["CF"], "kg/day"),
+        ("NFE", "NFE (Carbohydrates)", nutrient_totals["NFE"], "kg/day"),
+        ("Ash", "Ash (Minerals)", nutrient_totals["Ash"], "kg/day"),
+        ("NDF", "NDF (Digestible Fibre)", nutrient_totals["NDF"], "kg/day"),
+        ("ADF", "ADF (Indigestible Fibre)", nutrient_totals["ADF"], "kg/day"),
+        ("ME", "Metabolizable Energy", nutrient_totals["ME"], "MJ/day"),
+    ]
+    y = draw_nutrient_grid(c, y, nutrients_data)
+    
+    # Check if we need a new page for herd summary
+    if y < 200:
+        c.showPage()
+        y = height - 80
+    
+    # Total Herd Requirements
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, f"Total Herd Requirements ({num} Animals)")
+    y -= 25
+    
+    herd_feeds = [
+        ("Dry Fodder", dry_fodder, ration["dry"]),
+        ("Green Fodder", green_fodder, ration["green"]),
+        ("Concentrate", concentrate, ration["conc"]),
+        ("Oil Cake", oil_cake, ration["oil"]),
+        ("Bran", bran_feed, ration["bran"]),
+    ]
+    
+    c.setFont("Helvetica", 10)
+    for label, feed, qty in herd_feeds:
+        if feed is not None and qty > 0:
+            c.setFillColorRGB(0.941, 0.973, 0.902)
+            c.rect(50, y - 18, width - 100, 20, fill=True, stroke=True)
+            c.setFillColorRGB(0, 0, 0)
+            c.drawString(60, y - 12, f"{label}: {feed['Ingredient']}")
+            c.setFillColorRGB(0.176, 0.314, 0.086)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(450, y - 12, f"{qty * num:.2f} kg/day")
+            c.setFont("Helvetica", 10)
+            c.setFillColorRGB(0, 0, 0)
+            y -= 22
+    
+    # Mineral mixture
+    c.setFillColorRGB(1, 0.98, 0.8)
+    c.rect(50, y - 18, width - 100, 20, fill=True, stroke=True)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawString(60, y - 12, "Mineral Mixture")
+    c.setFillColorRGB(0.96, 0.66, 0.09)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(450, y - 12, f"{(ration['mineral'] * num)/1000:.2f} kg/day")
+    
+    # Footer
+    c.setFillColorRGB(0.7, 0.7, 0.7)
+    c.setFont("Helvetica", 8)
+    footer_text = "National Dairy Development Board (NDDB) Standards Applied"
+    c.drawCentredString(width/2, 40, footer_text)
+    c.drawCentredString(width/2, 28, "Base rations from NDDB TMR tables; adjustments follow NDDB feeding principles")
+    
+    c.save()
+    buffer.seek(0)
+
+    st.download_button(
+        label="📥 Download PDF Report",
+        data=buffer,
+        file_name="Feed_Recommendation_Report.pdf",
+        mime="application/pdf"
+    )
